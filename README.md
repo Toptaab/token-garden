@@ -1,12 +1,12 @@
-# my-mods
+# token-garden
 
 Claude Code mods by Toptaab.
 
 ## Install
 
 ```
-/plugin marketplace add Toptaab/my-mods
-/plugin install token-garden@my-mods
+/plugin marketplace add Toptaab/token-garden
+/plugin install token-garden@token-garden
 /reload-plugins
 ```
 
