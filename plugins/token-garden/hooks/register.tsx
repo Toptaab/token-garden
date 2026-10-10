@@ -8,10 +8,10 @@ const forecast = atom({ plugin: 'token-garden', key: 'forecast' } as const, null
 const BAR_CELLS = 20
 const MODEL_POLL_MS = 1000
 const BAR_COLOR = 'green'
-// '🌿 Making progress' is the widest label (an emoji is two cells, and two UTF-16 units),
-// '999.9k / 999.9k' the widest value.
+// '🌿 Making progress' is the widest label (an icon is two cells), '999.9k / 999.9k' the widest value.
 const LABEL_CELLS = 19
 const VALUE_CELLS = 16
+const ICON_CELLS = 2
 
 const SKIES = [
   { from: 80, icon: '🌳', word: 'Compact soon', color: 'red' },
@@ -20,7 +20,20 @@ const SKIES = [
   { from: 0, icon: '🌱', word: 'Just started', color: 'green' },
 ]
 
+const SUNS = [
+  { from: 100, icon: '🌑', word: 'No light left', color: 'red' },
+  { from: 80, icon: '☁️', word: 'Running low', color: 'red' },
+  { from: 50, icon: '⛅', word: 'Over halfway', color: 'yellow' },
+  { from: 25, icon: '🌤️', word: 'Filling up', color: 'green' },
+  { from: 0, icon: '☀️', word: 'Full sun', color: 'green' },
+]
+
 const skyFor = (percent: number) => SKIES.find(sky => percent >= sky.from) ?? SKIES[SKIES.length - 1]
+
+const sunFor = (percent: number) => SUNS.find(sun => percent >= sun.from) ?? SUNS[SUNS.length - 1]
+
+// An icon is two cells but one to three UTF-16 units, so only the word is padded.
+const titled = (icon: string, word: string) => `${icon} ${word.padEnd(LABEL_CELLS - ICON_CELLS - 1)}`
 
 const bar = (percent: number) => {
   const filled = Math.max(0, Math.min(BAR_CELLS, Math.round((percent / 100) * BAR_CELLS)))
@@ -149,12 +162,19 @@ export const register: Register = on => {
       </Text>
     )
 
-    const limitRow = (label: string, limit: Limit | null, withDay: boolean) => {
-      const name = <Text dimColor>{label.padEnd(LABEL_CELLS)}</Text>
-
+    const limitRow = (label: string, limit: Limit | null, withDay: boolean, withSun: boolean) => {
       if (limit === null) {
-        return row(name, '', 'no reading')
+        return row(<Text dimColor>{label.padEnd(LABEL_CELLS)}</Text>, '', 'no reading')
       }
+
+      const sun = sunFor(Math.round(limit.percent))
+      const name = withSun ? (
+        <Text color={sun.color} bold>
+          {titled(sun.icon, sun.word)}
+        </Text>
+      ) : (
+        <Text dimColor>{label.padEnd(LABEL_CELLS)}</Text>
+      )
 
       const resets = limit.resetsAt
         ? `resets ${withDay ? `${DAYS[new Date(limit.resetsAt).getDay()]} ` : ''}${clock(limit.resetsAt)}`
@@ -170,7 +190,7 @@ export const register: Register = on => {
       <Box flexDirection="column">
         <Text>
           <Text color={sky.color} bold>
-            {`${sky.icon} ${sky.word}`.padEnd(LABEL_CELLS)}
+            {titled(sky.icon, sky.word)}
           </Text>
           <Text color={BAR_COLOR}>{bar(now.percent)}</Text>
           <Text> {used.padEnd(VALUE_CELLS)}</Text>
@@ -180,8 +200,8 @@ export const register: Register = on => {
             {now.model}
           </Text>
         </Text>
-        {limitRow('Session', now.session, false)}
-        {limitRow('Week', now.week, true)}
+        {limitRow('Session', now.session, false, true)}
+        {limitRow('Week', now.week, true, false)}
       </Box>
     )
   })
