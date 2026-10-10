@@ -14,6 +14,7 @@ const VALUE_CELLS = 16
 const ICON_CELLS = 2
 
 const SKIES = [
+  { from: 100, icon: '🌲', word: 'Overgrown', color: 'red' },
   { from: 80, icon: '🌳', word: 'Compact soon', color: 'red' },
   { from: 50, icon: '🪴', word: 'Halfway up', color: 'yellow' },
   { from: 25, icon: '🌿', word: 'Making progress', color: 'green' },
@@ -28,9 +29,16 @@ const SUNS = [
   { from: 0, icon: '☀️', word: 'Full sun', color: 'green' },
 ]
 
-const skyFor = (percent: number) => SKIES.find(sky => percent >= sky.from) ?? SKIES[SKIES.length - 1]
+const SEASONS = [
+  { from: 100, icon: '❄️', word: 'Out of season', color: 'red' },
+  { from: 80, icon: '🍂', word: 'Late season', color: 'red' },
+  { from: 50, icon: '🍁', word: 'Peak season', color: 'yellow' },
+  { from: 25, icon: '🌻', word: 'In season', color: 'green' },
+  { from: 0, icon: '🌿', word: 'Early season', color: 'green' },
+]
 
-const sunFor = (percent: number) => SUNS.find(sun => percent >= sun.from) ?? SUNS[SUNS.length - 1]
+const tierFor = (tiers: typeof SKIES, percent: number) =>
+  tiers.find(tier => percent >= tier.from) ?? tiers[tiers.length - 1]
 
 // An icon is two cells but one to three UTF-16 units, so only the word is padded.
 const titled = (icon: string, word: string) => `${icon} ${word.padEnd(LABEL_CELLS - ICON_CELLS - 1)}`
@@ -151,7 +159,7 @@ export const register: Register = on => {
     const now = (await read($, forecast)) ?? (await current($))
 
     const { Box, Text } = $.ui.resolve(e)
-    const sky = skyFor(now.percent)
+    const sky = tierFor(SKIES, now.percent)
 
     const row = (label: unknown, value: string, note: string) => (
       <Text>
@@ -162,18 +170,16 @@ export const register: Register = on => {
       </Text>
     )
 
-    const limitRow = (label: string, limit: Limit | null, withDay: boolean, withSun: boolean) => {
+    const limitRow = (label: string, limit: Limit | null, withDay: boolean, tiers: typeof SKIES) => {
       if (limit === null) {
         return row(<Text dimColor>{label.padEnd(LABEL_CELLS)}</Text>, '', 'no reading')
       }
 
-      const sun = sunFor(Math.round(limit.percent))
-      const name = withSun ? (
-        <Text color={sun.color} bold>
-          {titled(sun.icon, sun.word)}
+      const tier = tierFor(tiers, Math.round(limit.percent))
+      const name = (
+        <Text color={tier.color} bold>
+          {titled(tier.icon, tier.word)}
         </Text>
-      ) : (
-        <Text dimColor>{label.padEnd(LABEL_CELLS)}</Text>
       )
 
       const resets = limit.resetsAt
@@ -200,8 +206,8 @@ export const register: Register = on => {
             {now.model}
           </Text>
         </Text>
-        {limitRow('Session', now.session, false, true)}
-        {limitRow('Week', now.week, true, false)}
+        {limitRow('Session', now.session, false, SUNS)}
+        {limitRow('Week', now.week, true, SEASONS)}
       </Box>
     )
   })
