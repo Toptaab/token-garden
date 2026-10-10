@@ -10,6 +10,19 @@ Claude Code mods by Toptaab.
 /reload-plugins
 ```
 
+Or from a shell:
+
+```
+claude plugin marketplace add Toptaab/token-garden
+claude plugin install token-garden@token-garden
+```
+
+Or paste this prompt into Claude Code:
+
+```
+Install the Claude Code plugin at https://github.com/Toptaab/token-garden
+```
+
 ## Develop
 
 Run Claude Code against the working copy, from the repo root:
