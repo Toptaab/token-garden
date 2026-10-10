@@ -5,6 +5,7 @@ export type Forecast = {
   window: number
   percent: number
   delta: number | null
+  model: string
   session: Limit | null
   week: Limit | null
 }

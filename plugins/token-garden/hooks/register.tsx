@@ -6,17 +6,18 @@ import type { Forecast, Limit } from '../types'
 const forecast = atom({ plugin: 'token-garden', key: 'forecast' } as const, null)
 
 const BAR_CELLS = 20
-const BAR_COLOR = '#FF8C00'
-// '↯ Compact soon' is the widest label, '999.9k / 999.9k' the widest value.
-const LABEL_CELLS = 15
+const MODEL_POLL_MS = 1000
+const BAR_COLOR = 'green'
+// '🌿 Making progress' is the widest label (an emoji is two cells, and two UTF-16 units),
+// '999.9k / 999.9k' the widest value.
+const LABEL_CELLS = 19
 const VALUE_CELLS = 16
 
 const SKIES = [
-  { from: 90, icon: '↯', word: 'Compact soon', color: 'red' },
-  { from: 75, icon: '☇', word: 'Storm', color: 'magenta' },
-  { from: 50, icon: '☂', word: 'Showers', color: 'blue' },
-  { from: 25, icon: '☁', word: 'Cloudy', color: 'cyan' },
-  { from: 0, icon: '☀', word: 'Clear', color: 'yellow' },
+  { from: 80, icon: '🌳', word: 'Compact soon', color: 'red' },
+  { from: 50, icon: '🪴', word: 'Halfway up', color: 'yellow' },
+  { from: 25, icon: '🌿', word: 'Making progress', color: 'green' },
+  { from: 0, icon: '🌱', word: 'Just started', color: 'green' },
 ]
 
 const skyFor = (percent: number) => SKIES.find(sky => percent >= sky.from) ?? SKIES[SKIES.length - 1]
@@ -58,36 +59,67 @@ const limitOf = (limits: readonly SessionRateLimit[], kind: string): Limit | nul
   return limit ? { percent: limit.percentUsed, resetsAt: limit.resetsAt ?? null } : null
 }
 
+const modelOf = async ($: EngineInterface) =>
+  (await $.session.model()).replace(/^claude-/, '').replace(/-\d{8}$/, '')
+
+const forecastOf = (
+  prev: Forecast | null,
+  context: SessionContextUsage,
+  limits: readonly SessionRateLimit[],
+  model: string,
+  isTurn: boolean,
+): Forecast => {
+  // No response yet (a fresh or just-cleared session): an empty window, so the band shows from the start.
+  const tokens = context.tokens ?? prev?.tokens ?? 0
+  const moved = prev && isTurn ? tokens - prev.tokens : null
+
+  return {
+    tokens,
+    window: context.window,
+    percent: context.percent ?? Math.round((tokens / context.window) * 100),
+    model,
+    delta: moved === null || moved === 0 ? (prev?.delta ?? null) : moved,
+    session: limitOf(limits, 'five_hour') ?? prev?.session ?? null,
+    week: limitOf(limits, 'seven_day') ?? prev?.week ?? null,
+  }
+}
+
 const measure = async (
   $: EngineInterface,
   context: SessionContextUsage,
   limits: readonly SessionRateLimit[],
   isTurn: boolean,
 ) => {
-  await update($, forecast, (prev: Forecast | null): Forecast | null => {
-    const tokens = context.tokens ?? prev?.tokens
+  const model = await modelOf($)
 
-    if (tokens === undefined) {
-      return prev
-    }
+  await update($, forecast, (prev: Forecast | null) => forecastOf(prev, context, limits, model, isTurn))
+}
 
-    const moved = prev && isTurn ? tokens - prev.tokens : null
+// A /clear empties the session's state and raises no session.start: measure on the spot.
+const current = async ($: EngineInterface) => {
+  const usage = await $.session.usage()
 
-    return {
-      tokens,
-      window: context.window,
-      percent: context.percent ?? Math.round((tokens / context.window) * 100),
-      delta: moved === null || moved === 0 ? (prev?.delta ?? null) : moved,
-      session: limitOf(limits, 'five_hour') ?? prev?.session ?? null,
-      week: limitOf(limits, 'seven_day') ?? prev?.week ?? null,
-    }
-  })
+  return forecastOf(null, usage.context, usage.rateLimits, await modelOf($), false)
+}
+
+// A /model switch raises nothing a mod hears, so the model is polled.
+const refresh = async ($: EngineInterface) => {
+  const model = await modelOf($)
+  const shown = await read($, forecast)
+
+  if (shown === null) {
+    const usage = await $.session.usage()
+    await measure($, usage.context, usage.rateLimits, false)
+  } else if (shown.model !== model) {
+    await update($, forecast, (prev: Forecast | null) => (prev ? { ...prev, model } : prev))
+  }
 }
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const usage = await $.session.usage()
     await measure($, usage.context, usage.rateLimits, false)
+    $.clock.every(MODEL_POLL_MS, () => void refresh($))
 
     return next(e)
   })
@@ -99,11 +131,11 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    const now = await read($, forecast)
-
-    if (e.props.hasSurvey || now === null) {
+    if (e.props.hasSurvey) {
       return next(e)
     }
+
+    const now = (await read($, forecast)) ?? (await current($))
 
     const { Box, Text } = $.ui.resolve(e)
     const sky = skyFor(now.percent)
@@ -143,6 +175,10 @@ export const register: Register = on => {
           <Text color={BAR_COLOR}>{bar(now.percent)}</Text>
           <Text> {used.padEnd(VALUE_CELLS)}</Text>
           <Text dimColor>{turn}</Text>
+          <Text color={BAR_COLOR}>
+            {turn === '' ? '' : '  '}
+            {now.model}
+          </Text>
         </Text>
         {limitRow('Session', now.session, false)}
         {limitRow('Week', now.week, true)}
