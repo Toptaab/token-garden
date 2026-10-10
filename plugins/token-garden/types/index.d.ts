@@ -1,5 +1,7 @@
 export type Limit = { percent: number; resetsAt: string | null }
 
+export type Limits = { session: Limit | null; week: Limit | null }
+
 export type Forecast = {
   tokens: number
   window: number

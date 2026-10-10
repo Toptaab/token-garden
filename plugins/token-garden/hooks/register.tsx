@@ -1,12 +1,13 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, SessionContextUsage, SessionRateLimit } from 'claude-code'
 
-import type { Forecast, Limit } from '../types'
+import type { Forecast, Limit, Limits } from '../types'
 
 const forecast = atom({ plugin: 'token-garden', key: 'forecast' } as const, null)
 
 const BAR_CELLS = 20
 const MODEL_POLL_MS = 1000
+const LIMITS_KEY = 'limits'
 const BAR_COLOR = 'green'
 // '🌿 Making progress' is the widest label (an icon is two cells), '999.9k / 999.9k' the widest value.
 const LABEL_CELLS = 19
@@ -80,13 +81,31 @@ const limitOf = (limits: readonly SessionRateLimit[], kind: string): Limit | nul
   return limit ? { percent: limit.percentUsed, resetsAt: limit.resetsAt ?? null } : null
 }
 
+const isLive = (limit: Limit | null | undefined, now: number): limit is Limit =>
+  !!limit && (limit.resetsAt === null || Date.parse(limit.resetsAt) > now)
+
+// The engine learns the limits from an API response, so a new session has none until its first turn:
+// the last reading any session took stands in, unless its window has since reset.
+const limitsOf = async ($: EngineInterface, limits: readonly SessionRateLimit[]): Promise<Limits> => {
+  const kept = ((await $.store.get(LIMITS_KEY)) ?? {}) as Partial<Limits>
+  const now = await $.clock.now()
+  const session = limitOf(limits, 'five_hour') ?? (isLive(kept.session, now) ? kept.session : null)
+  const week = limitOf(limits, 'seven_day') ?? (isLive(kept.week, now) ? kept.week : null)
+
+  if (limits.length > 0) {
+    await $.store.set(LIMITS_KEY, { session, week })
+  }
+
+  return { session, week }
+}
+
 const modelOf = async ($: EngineInterface) =>
   (await $.session.model()).replace(/^claude-/, '').replace(/-\d{8}$/, '')
 
 const forecastOf = (
   prev: Forecast | null,
   context: SessionContextUsage,
-  limits: readonly SessionRateLimit[],
+  limits: Limits,
   model: string,
   isTurn: boolean,
 ): Forecast => {
@@ -100,8 +119,8 @@ const forecastOf = (
     percent: context.percent ?? Math.round((tokens / context.window) * 100),
     model,
     delta: moved === null || moved === 0 ? (prev?.delta ?? null) : moved,
-    session: limitOf(limits, 'five_hour') ?? prev?.session ?? null,
-    week: limitOf(limits, 'seven_day') ?? prev?.week ?? null,
+    session: limits.session ?? prev?.session ?? null,
+    week: limits.week ?? prev?.week ?? null,
   }
 }
 
@@ -112,15 +131,16 @@ const measure = async (
   isTurn: boolean,
 ) => {
   const model = await modelOf($)
+  const known = await limitsOf($, limits)
 
-  await update($, forecast, (prev: Forecast | null) => forecastOf(prev, context, limits, model, isTurn))
+  await update($, forecast, (prev: Forecast | null) => forecastOf(prev, context, known, model, isTurn))
 }
 
 // A /clear empties the session's state and raises no session.start: measure on the spot.
 const current = async ($: EngineInterface) => {
   const usage = await $.session.usage()
 
-  return forecastOf(null, usage.context, usage.rateLimits, await modelOf($), false)
+  return forecastOf(null, usage.context, await limitsOf($, usage.rateLimits), await modelOf($), false)
 }
 
 // A /model switch raises nothing a mod hears, so the model is polled.
