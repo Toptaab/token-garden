@@ -126,7 +126,8 @@ const forecastOf = (
     window: context.window,
     percent: context.percent ?? Math.round((tokens / context.window) * 100),
     model,
-    effort: prev ? prev.effort : effort,
+    // A forecast kept from before the band showed effort has none: undefined, where null says the model takes none.
+    effort: prev?.effort !== undefined ? prev.effort : effort,
     delta: moved === null || moved === 0 ? (prev?.delta ?? null) : moved,
     session: limits.session ?? prev?.session ?? null,
     week: limits.week ?? prev?.week ?? null,
@@ -244,7 +245,7 @@ export const register: Register = on => {
           <Text color={BAR_COLOR}>
             {turn === '' ? '' : '  '}
             {now.model}
-            {now.effort === null ? '' : ` · ${now.effort}`}
+            {now.effort ? ` · ${now.effort}` : ''}
           </Text>
         </Text>
         {limitRow('Session', now.session, false, SUNS)}
