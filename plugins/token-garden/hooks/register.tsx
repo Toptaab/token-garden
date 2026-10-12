@@ -103,11 +103,17 @@ const modelOf = async ($: EngineInterface) =>
   (await $.session.model()).replace(/^claude-/, '').replace(/-\d{8}$/, '')
 
 // Before the first request the setting stands in; a request then says what was really asked.
+// /effort keeps its level per model, under modelSettings.
 const effortOf = async ($: EngineInterface) => {
-  const { effortLevel } = await $.settings.read({})
+  const settings = await $.settings.read({})
+  const perModel = (settings.modelSettings ?? {}) as Record<string, { effortLevel?: unknown } | undefined>
+  const level = perModel[await $.session.model()]?.effortLevel ?? settings.effortLevel
 
-  return typeof effortLevel === 'string' ? effortLevel : null
+  return typeof level === 'string' ? level : null
 }
+
+// The setting as last polled: a change in it is an /effort, which raises nothing a mod hears either.
+let polledEffort: string | null | undefined
 
 const forecastOf = (
   prev: Forecast | null,
@@ -157,13 +163,18 @@ const current = async ($: EngineInterface) => {
 // A /model switch raises nothing a mod hears, so the model is polled.
 const refresh = async ($: EngineInterface) => {
   const model = await modelOf($)
+  const effort = await effortOf($)
   const shown = await read($, forecast)
+  const isSwitched = polledEffort !== undefined && polledEffort !== effort
+  polledEffort = effort
 
   if (shown === null) {
     const usage = await $.session.usage()
     await measure($, usage.context, usage.rateLimits, false)
-  } else if (shown.model !== model) {
-    await update($, forecast, (prev: Forecast | null) => (prev ? { ...prev, model } : prev))
+  } else if (shown.model !== model || isSwitched) {
+    await update($, forecast, (prev: Forecast | null) =>
+      prev ? { ...prev, model, effort: isSwitched ? effort : prev.effort } : prev,
+    )
   }
 }
 
