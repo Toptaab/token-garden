@@ -8,6 +8,7 @@ export type Forecast = {
   percent: number
   delta: number | null
   model: string
+  effort: string | null
   session: Limit | null
   week: Limit | null
 }

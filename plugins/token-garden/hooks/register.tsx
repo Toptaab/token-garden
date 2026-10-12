@@ -102,11 +102,19 @@ const limitsOf = async ($: EngineInterface, limits: readonly SessionRateLimit[])
 const modelOf = async ($: EngineInterface) =>
   (await $.session.model()).replace(/^claude-/, '').replace(/-\d{8}$/, '')
 
+// Before the first request the setting stands in; a request then says what was really asked.
+const effortOf = async ($: EngineInterface) => {
+  const { effortLevel } = await $.settings.read({})
+
+  return typeof effortLevel === 'string' ? effortLevel : null
+}
+
 const forecastOf = (
   prev: Forecast | null,
   context: SessionContextUsage,
   limits: Limits,
   model: string,
+  effort: string | null,
   isTurn: boolean,
 ): Forecast => {
   // No response yet (a fresh or just-cleared session): an empty window, so the band shows from the start.
@@ -118,6 +126,7 @@ const forecastOf = (
     window: context.window,
     percent: context.percent ?? Math.round((tokens / context.window) * 100),
     model,
+    effort: prev ? prev.effort : effort,
     delta: moved === null || moved === 0 ? (prev?.delta ?? null) : moved,
     session: limits.session ?? prev?.session ?? null,
     week: limits.week ?? prev?.week ?? null,
@@ -131,16 +140,17 @@ const measure = async (
   isTurn: boolean,
 ) => {
   const model = await modelOf($)
+  const effort = await effortOf($)
   const known = await limitsOf($, limits)
 
-  await update($, forecast, (prev: Forecast | null) => forecastOf(prev, context, known, model, isTurn))
+  await update($, forecast, (prev: Forecast | null) => forecastOf(prev, context, known, model, effort, isTurn))
 }
 
 // A /clear empties the session's state and raises no session.start: measure on the spot.
 const current = async ($: EngineInterface) => {
   const usage = await $.session.usage()
 
-  return forecastOf(null, usage.context, await limitsOf($, usage.rateLimits), await modelOf($), false)
+  return forecastOf(null, usage.context, await limitsOf($, usage.rateLimits), await modelOf($), await effortOf($), false)
 }
 
 // A /model switch raises nothing a mod hears, so the model is polled.
@@ -169,6 +179,16 @@ export const register: Register = on => {
     await measure($, e.context, e.rateLimits, e.changed.includes('context'))
 
     return next(e)
+  })
+
+  // A model that takes no effort is sent none: the band then shows the model alone.
+  on('turn.step', async function* ($, e, next) {
+    if (e.agentId === undefined) {
+      const effort = e.effort === undefined ? null : String(e.effort)
+      await update($, forecast, (prev: Forecast | null) => (prev ? { ...prev, effort } : prev))
+    }
+
+    return yield* next(e)
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
@@ -224,6 +244,7 @@ export const register: Register = on => {
           <Text color={BAR_COLOR}>
             {turn === '' ? '' : '  '}
             {now.model}
+            {now.effort === null ? '' : ` · ${now.effort}`}
           </Text>
         </Text>
         {limitRow('Session', now.session, false, SUNS)}
