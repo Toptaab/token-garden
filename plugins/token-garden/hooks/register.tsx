@@ -38,6 +38,15 @@ const SEASONS = [
   { from: 0, icon: '🌿', word: 'Early season', color: 'green' },
 ]
 
+// How fast an effort burns the limits, in the tiers' colors; one the table lacks keeps the bar's.
+const EFFORT_COLORS: Record<string, string> = {
+  low: 'green',
+  medium: 'green',
+  high: 'yellow',
+  xhigh: 'red',
+  max: 'red',
+}
+
 const tierFor = (tiers: typeof SKIES, percent: number) =>
   tiers.find(tier => percent >= tier.from) ?? tiers[tiers.length - 1]
 
@@ -256,8 +265,9 @@ export const register: Register = on => {
           <Text color={BAR_COLOR}>
             {turn === '' ? '' : '  '}
             {now.model}
-            {now.effort ? ` · ${now.effort}` : ''}
+            {now.effort ? ' · ' : ''}
           </Text>
+          <Text color={EFFORT_COLORS[now.effort ?? ''] ?? BAR_COLOR}>{now.effort ?? ''}</Text>
         </Text>
         {limitRow('Session', now.session, false, SUNS)}
         {limitRow('Week', now.week, true, SEASONS)}
