@@ -6,7 +6,7 @@ Claude Code mods by Toptaab.
 
 ```
 /plugin marketplace add Toptaab/token-garden
-/plugin install token-garden@token-garden
+/plugin install token-garden@toptaab-mods
 /reload-plugins
 ```
 
@@ -22,10 +22,10 @@ If you are an AI agent asked to install this repo, it is a Claude Code plugin ma
 
 ```
 claude plugin marketplace add Toptaab/token-garden
-claude plugin install token-garden@token-garden
+claude plugin install token-garden@toptaab-mods
 ```
 
-If the marketplace is already added, run `claude plugin marketplace update token-garden` instead of the first command. Then tell the user to type `/reload-plugins` or restart the session; you cannot run that yourself. The mod shows up as a band above the prompt.
+If the marketplace is already added, run `claude plugin marketplace update toptaab-mods` instead of the first command. Then tell the user to type `/reload-plugins` or restart the session; you cannot run that yourself. The mod shows up as a band above the prompt.
 
 ## Develop
 
