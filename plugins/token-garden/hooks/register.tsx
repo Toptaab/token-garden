@@ -8,7 +8,7 @@ const forecast = atom({ plugin: 'token-garden', key: 'forecast' } as const, null
 const BAR_CELLS = 20
 const MODEL_POLL_MS = 1000
 const LIMITS_KEY = 'limits'
-const BAR_COLOR = 'green'
+const MODEL_COLOR = 'green'
 // '🌿 Making progress' is the widest label (an icon is two cells), '999.9k / 999.9k' the widest value.
 const LABEL_CELLS = 19
 const VALUE_CELLS = 16
@@ -38,7 +38,7 @@ const SEASONS = [
   { from: 0, icon: '🌿', word: 'Early season', color: 'green' },
 ]
 
-// How fast an effort burns the limits, in the tiers' colors; one the table lacks keeps the bar's.
+// How fast an effort burns the limits, in the tiers' colors; one the table lacks keeps the model's.
 const EFFORT_COLORS: Record<string, string> = {
   low: 'green',
   medium: 'green',
@@ -222,10 +222,13 @@ export const register: Register = on => {
     const { Box, Text } = $.ui.resolve(e)
     const sky = tierFor(SKIES, now.percent)
 
-    const row = (label: unknown, value: string, note: string) => (
+    // The bar takes its title's color; a row with no reading has neither.
+    const row = (label: unknown, value: string, note: string, color?: string) => (
       <Text>
         {label}
-        <Text color={BAR_COLOR}>{value === '' ? bar(0) : bar(parseFloat(value))}</Text>
+        <Text color={color} dimColor={color === undefined}>
+          {value === '' ? bar(0) : bar(parseFloat(value))}
+        </Text>
         <Text> {value.padEnd(VALUE_CELLS)}</Text>
         <Text dimColor>{note}</Text>
       </Text>
@@ -247,7 +250,7 @@ export const register: Register = on => {
         ? `resets ${withDay ? `${DAYS[new Date(limit.resetsAt).getDay()]} ` : ''}${clock(limit.resetsAt)}`
         : ''
 
-      return row(name, `${Math.round(limit.percent)}%`, resets)
+      return row(name, `${Math.round(limit.percent)}%`, resets, tier.color)
     }
 
     const used = `${compact(now.tokens)} / ${compact(now.window)}`
@@ -259,15 +262,15 @@ export const register: Register = on => {
           <Text color={sky.color} bold>
             {titled(sky.icon, sky.word)}
           </Text>
-          <Text color={BAR_COLOR}>{bar(now.percent)}</Text>
+          <Text color={sky.color}>{bar(now.percent)}</Text>
           <Text> {used.padEnd(VALUE_CELLS)}</Text>
           <Text dimColor>{turn}</Text>
-          <Text color={BAR_COLOR}>
+          <Text color={MODEL_COLOR}>
             {turn === '' ? '' : '  '}
             {now.model}
             {now.effort ? ' · ' : ''}
           </Text>
-          <Text color={EFFORT_COLORS[now.effort ?? ''] ?? BAR_COLOR}>{now.effort ?? ''}</Text>
+          <Text color={EFFORT_COLORS[now.effort ?? ''] ?? MODEL_COLOR}>{now.effort ?? ''}</Text>
         </Text>
         {limitRow('Session', now.session, false, SUNS)}
         {limitRow('Week', now.week, true, SEASONS)}
