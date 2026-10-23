@@ -31,6 +31,10 @@ claude plugin install token-garden@toptaab-mods
 
 If the marketplace is already added, run `claude plugin marketplace update toptaab-mods` instead of the first command; if that marketplace was added from `Toptaab/token-garden`, run `claude plugin marketplace remove toptaab-mods` first. Then tell the user to type `/reload-plugins` or restart the session; you cannot run that yourself. The mod shows up as a band above the prompt.
 
+## Use
+
+The band shows above the prompt in every session. `/garden` hides it or brings it back; `/garden hide` and `/garden show` say which. A hidden band stays hidden in later sessions until `/garden` again.
+
 ## Develop
 
 Run Claude Code against the working copy, from the repo root:

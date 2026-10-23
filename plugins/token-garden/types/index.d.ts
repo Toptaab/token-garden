@@ -15,6 +15,10 @@ export type Forecast = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'token-garden': { forecast: Forecast | null }
+    'token-garden': {
+      forecast: Forecast | null
+      // Whether the person put the band away with /garden.
+      hidden: boolean
+    }
   }
 }

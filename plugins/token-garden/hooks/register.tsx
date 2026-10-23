@@ -4,10 +4,13 @@ import type { EngineInterface, Register, SessionContextUsage, SessionRateLimit }
 import type { Forecast, Limit, Limits } from '../types'
 
 const forecast = atom({ plugin: 'token-garden', key: 'forecast' } as const, null)
+const hidden = atom({ plugin: 'token-garden', key: 'hidden' } as const, false)
 
 const BAR_CELLS = 20
 const MODEL_POLL_MS = 1000
 const LIMITS_KEY = 'limits'
+// Kept across sessions, so a band put away stays away.
+const HIDDEN_KEY = 'hidden'
 const MODEL_COLOR = 'green'
 // '🌿 Making progress' is the widest label (an icon is two cells), '999.9k / 999.9k' the widest value.
 const LABEL_CELLS = 19
@@ -189,6 +192,12 @@ const refresh = async ($: EngineInterface) => {
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
+    await $.command.register({
+      name: 'garden',
+      description: 'Show or hide the token-garden band above the prompt (args: show, hide)',
+    })
+    const isHidden = (await $.store.get(HIDDEN_KEY)) === true
+    await update($, hidden, () => isHidden)
     const usage = await $.session.usage()
     await measure($, usage.context, usage.rateLimits, false)
     $.clock.every(MODEL_POLL_MS, () => void refresh($))
@@ -212,8 +221,17 @@ export const register: Register = on => {
     return yield* next(e)
   })
 
+  on('command.run', { command: 'garden' }, async ($, e) => {
+    const arg = e.args.trim()
+    const isHidden = arg === 'hide' ? true : arg === 'show' ? false : !(await read($, hidden))
+    await update($, hidden, () => isHidden)
+    await $.store.set(HIDDEN_KEY, isHidden)
+
+    return { text: isHidden ? 'Token garden hidden. /garden brings it back.' : 'Token garden shown.' }
+  })
+
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (e.props.hasSurvey) {
+    if (e.props.hasSurvey || (await read($, hidden))) {
       return next(e)
     }
 
