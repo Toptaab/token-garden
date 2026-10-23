@@ -272,6 +272,8 @@ export const register: Register = on => {
     }
 
     const now = (await read($, forecast)) ?? (await current($))
+    // Whatever another plugin draws in the band (agent-roster's roster on the terminal) stays.
+    const beneath = await next(e)
 
     const sky = tierFor(SKIES, now.percent)
 
@@ -328,6 +330,7 @@ export const register: Register = on => {
         {limitRow('Session', now.session, false, SUNS)}
         {limitRow('Week', now.week, true, SEASONS)}
         {switches}
+        {beneath}
       </Box>
     )
   })

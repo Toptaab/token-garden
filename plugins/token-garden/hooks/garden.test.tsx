@@ -68,3 +68,23 @@ test('the switch row runs /roster and puts the garden away', async ($, on) => {
     await away.unmount()
   }
 })
+
+test('the band keeps what another plugin draws there', async ($, on) => {
+  mock.clock(on)
+  mock.store(on)
+  on('command.register', (_, e) => ({ value: { command: e.name } }))
+  on('session.usage', () => ({ value: { startedAt: 0, context: { tokens: 50_000, window: 200_000, percent: 25 }, rateLimits: [] } }))
+  on('session.model', () => ({ value: 'claude-opus-5-5' }))
+  on('settings.read', () => ({ value: {} as never }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>roster below</Text>
+  })
+
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await band.find({ type: 'Text', text: /opus/ })).toBeTruthy()
+  expect(await band.find({ type: 'Text', text: /roster below/ })).toBeTruthy()
+  await band.unmount()
+})
