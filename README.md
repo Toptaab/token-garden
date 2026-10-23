@@ -35,6 +35,8 @@ If the marketplace is already added, run `claude plugin marketplace update topta
 
 The band shows above the prompt in every session. `/garden` hides it or brings it back; `/garden hide` and `/garden show` say which. A hidden band stays hidden in later sessions until `/garden` again.
 
+Under the bars sits a row of two switches: **◧ Agents** opens or closes the [agent-roster](https://github.com/Toptaab/agent-roster) pane (it runs `/roster`; a toast says so when agent-roster is not installed), and **▾ Garden** puts the band away, the same as `/garden`. While the garden is away the switch row stays, so **▸ Garden** brings it back.
+
 ## Develop
 
 Run Claude Code against the working copy, from the repo root:

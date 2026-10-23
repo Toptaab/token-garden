@@ -11,6 +11,8 @@ const MODEL_POLL_MS = 1000
 const LIMITS_KEY = 'limits'
 // Kept across sessions, so a band put away stays away.
 const HIDDEN_KEY = 'hidden'
+// The agent-roster mod's command: the switch row's Agents button runs it.
+const ROSTER_COMMAND = 'roster'
 const MODEL_COLOR = 'green'
 // '🌿 Making progress' is the widest label (an icon is two cells), '999.9k / 999.9k' the widest value.
 const LABEL_CELLS = 19
@@ -190,6 +192,15 @@ const refresh = async ($: EngineInterface) => {
   }
 }
 
+const setHidden = async ($: EngineInterface, isHidden: boolean) => {
+  await update($, hidden, () => isHidden)
+  await $.store.set(HIDDEN_KEY, isHidden)
+}
+
+// Rejects while agent-roster is not loaded: say so rather than fail quietly.
+const toggleAgents = ($: EngineInterface) =>
+  $.command.run({ command: ROSTER_COMMAND }).catch(() => $.ui.toast('agent-roster is not loaded'))
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
@@ -224,20 +235,44 @@ export const register: Register = on => {
   on('command.run', { command: 'garden' }, async ($, e) => {
     const arg = e.args.trim()
     const isHidden = arg === 'hide' ? true : arg === 'show' ? false : !(await read($, hidden))
-    await update($, hidden, () => isHidden)
-    await $.store.set(HIDDEN_KEY, isHidden)
+    await setHidden($, isHidden)
 
     return { text: isHidden ? 'Token garden hidden. /garden brings it back.' : 'Token garden shown.' }
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (e.props.hasSurvey || (await read($, hidden))) {
+    if (e.props.hasSurvey) {
       return next(e)
+    }
+
+    const isHidden = await read($, hidden)
+    const { Box, Text, Button } = $.ui.resolve(e)
+
+    // One row of switches for both mods, kept while the garden is put away.
+    const switches = (
+      <Box flexDirection="row" gap={2}>
+        <Button key="agents" plain dimColor label="◧ Agents" onPress={() => toggleAgents($)} />
+        <Button
+          key="garden"
+          plain
+          dimColor
+          label={isHidden ? '▸ Garden' : '▾ Garden'}
+          onPress={() => setHidden($, !isHidden)}
+        />
+      </Box>
+    )
+
+    if (isHidden) {
+      return (
+        <Box flexDirection="column">
+          {switches}
+          {await next(e)}
+        </Box>
+      )
     }
 
     const now = (await read($, forecast)) ?? (await current($))
 
-    const { Box, Text } = $.ui.resolve(e)
     const sky = tierFor(SKIES, now.percent)
 
     // The bar takes its title's color; a row with no reading has neither.
@@ -292,6 +327,7 @@ export const register: Register = on => {
         </Text>
         {limitRow('Session', now.session, false, SUNS)}
         {limitRow('Week', now.week, true, SEASONS)}
+        {switches}
       </Box>
     )
   })

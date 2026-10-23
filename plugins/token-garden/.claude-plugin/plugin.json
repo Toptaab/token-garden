@@ -1,6 +1,6 @@
 {
   "name": "token-garden",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A live forecast of the context window and rate limits, in the band above the prompt.",
   "author": {
     "name": "Toptaab"
